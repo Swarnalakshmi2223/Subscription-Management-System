@@ -156,11 +156,13 @@ const subscriptionSchema = new mongoose.Schema(
 );
 
 subscriptionSchema.index({ status: 1, nextBillingDate: 1 });
+subscriptionSchema.index({ status: 1, isPaused: 1, nextBillingDate: 1 });
 subscriptionSchema.index({ customerId: 1, status: 1 });
 subscriptionSchema.index({ planId: 1 });
 subscriptionSchema.index({ status: 1, isPaused: 1, startDate: 1 });
 subscriptionSchema.index({ planId: 1, startDate: 1 });
 subscriptionSchema.index({ customerId: 1, startDate: 1 });
+subscriptionSchema.index({ status: 1, createdAt: -1 });
 
 subscriptionSchema.set('toJSON', {
   transform: (doc, ret) => {

@@ -183,8 +183,10 @@ invoiceSchema.index(
   { unique: true }
 );
 invoiceSchema.index({ customerId: 1, status: 1 });
+invoiceSchema.index({ customerId: 1, issueDate: -1 });
 invoiceSchema.index({ status: 1, dueDate: 1 });
 invoiceSchema.index({ issueDate: 1 });
+invoiceSchema.index({ issueDate: -1, createdAt: -1 });
 
 invoiceSchema.set('toJSON', {
   transform: (doc, ret) => {

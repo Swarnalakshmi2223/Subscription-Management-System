@@ -4,10 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/runAllTests.js",
     "dev": "node --watch server.js",
     "start": "node server.js",
     "seed:admin": "node seed/seedAdmin.js",
+    "seed:demo": "node scripts/seedDemo.js",
+    "seed:perf": "node scripts/seedPerf.js",
     "test:billing": "node scripts/testBilling.js",
     "test:payments": "node scripts/testPayments.js",
     "test:reports": "node scripts/testReports.js",

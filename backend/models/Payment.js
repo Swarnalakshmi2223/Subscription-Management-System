@@ -46,7 +46,9 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ invoiceId: 1 });
 paymentSchema.index({ paymentDate: 1 });
+paymentSchema.index({ method: 1, paymentDate: 1 });
 paymentSchema.index({ customerId: 1, paymentDate: 1 });
+paymentSchema.index({ paymentDate: -1, createdAt: -1 });
 
 paymentSchema.set('toJSON', {
   transform: (doc, ret) => {
