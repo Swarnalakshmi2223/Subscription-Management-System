@@ -88,7 +88,7 @@ export default function Layout() {
             <MenuIcon />
           </IconButton>
           <Box sx={{ flex: 1 }} />
-          <Stack direction="row" spacing={1.5} alignItems="center">
+         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Chip label={user.role} color={roleColor[user.role]} size="small" sx={{ textTransform: 'capitalize' }} />
             <IconButton onClick={(e) => setAnchor(e.currentTarget)} aria-label="account menu">
               <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 16 }}>

@@ -81,7 +81,7 @@ export default function Users() {
       />
 
       <Card>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }} sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2, justifyContent: 'space-between', alignItems: { md: 'center' } }}>
           {isAdmin ? (
             <Tabs value={role} onChange={(e, v) => { setRole(v); setPage(0); }}>
               <Tab value="all" label="All" />
@@ -119,7 +119,7 @@ export default function Users() {
               {items.map((u) => (
                 <TableRow key={u._id} hover>
                   <TableCell>
-                    <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                       <Avatar sx={{ width: 32, height: 32, fontSize: 14 }}>{u.name.charAt(0).toUpperCase()}</Avatar>
                       <Typography fontWeight={600}>{u.name}</Typography>
                     </Stack>
