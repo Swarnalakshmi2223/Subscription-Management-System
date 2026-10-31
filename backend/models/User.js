@@ -31,6 +31,8 @@ userSchema.methods.comparePassword = function (plain) {
   return bcrypt.compare(plain, this.passwordHash);
 };
 
+userSchema.index({ resetTokenHash: 1 }, { sparse: true });
+
 userSchema.set('toJSON', {
   transform: (doc, ret) => {
     delete ret.passwordHash;
