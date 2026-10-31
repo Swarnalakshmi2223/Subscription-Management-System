@@ -5,12 +5,12 @@ import Subscription from '../models/Subscription.js';
 import Counter from '../models/Counter.js';
 import User from '../models/User.js';
 import Plan from '../models/Plan.js';
-import Product from '../models/Product.js';
-import Tax from '../models/Tax.js';
 import QuotationTemplate from '../models/QuotationTemplate.js';
 
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+
+import { buildSubscriptionLines } from '../services/pricingService.js';
 
 // Generate sequential subscription numbers.
 const generateSubscriptionNumber = async () => {
@@ -54,90 +54,6 @@ const addBillingPeriod = (date, period) => {
   return result;
 };
 
-// Build subscription lines using backend product and tax prices.
-const buildSubscriptionLines = async (template, plan) => {
-  const result = [];
-
-  for (const line of template.lines) {
-    const product = await Product.findById(line.productId);
-
-    if (!product || !product.isActive) {
-      throw new AppError(
-        'One of the template products is unavailable',
-        400
-      );
-    }
-
-    let unitPrice = product._id.equals(plan.productId)
-      ? plan.price
-      : product.salesPrice;
-
-    // Validate the selected variant and add its extra price.
-    if (line.variant?.attribute || line.variant?.value) {
-      if (!line.variant.attribute || !line.variant.value) {
-        throw new AppError('Both variant attribute and value are required', 400);
-      }
-
-      const selectedVariant = product.variants.find(
-        (variant) =>
-          variant.attribute.toLowerCase() ===
-            line.variant.attribute.toLowerCase() &&
-          variant.value.toLowerCase() ===
-            line.variant.value.toLowerCase()
-      );
-
-      if (!selectedVariant) {
-        throw new AppError(
-          `Selected variant is not available for ${product.name}`,
-          400
-        );
-      }
-
-      unitPrice += selectedVariant.extraPrice;
-    }
-
-    if (product._id.equals(plan.productId) &&
-        line.quantity < plan.minQuantity) {
-      throw new AppError(
-        `Quantity for the plan product must be at least ${plan.minQuantity}`,
-        400
-      );
-    }
-
-    const subtotal = unitPrice * line.quantity;
-
-    if (!Number.isSafeInteger(subtotal)) {
-      throw new AppError('Subscription line price is too large', 400);
-    }
-
-    let taxAmount = 0;
-    let taxId = product.taxId || null;
-
-    if (taxId) {
-      const tax = await Tax.findById(taxId);
-
-      if (tax && tax.isActive) {
-        taxAmount = Math.round(
-          (subtotal * tax.ratePercent) / 100
-        );
-      } else {
-        taxId = null;
-      }
-    }
-
-    result.push({
-      productId: product._id,
-      variant: line.variant || {},
-      quantity: line.quantity,
-      unitPrice,
-      taxId,
-      taxAmount,
-      amount: subtotal + taxAmount,
-    });
-  }
-
-  return result;
-};
 
 // Populate subscription response.
 const populateSubscription = (query) =>
