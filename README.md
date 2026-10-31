@@ -11,7 +11,7 @@ payments, customer self-service, and finance reporting.
   node-cron, Helmet, CORS, Morgan, and express-rate-limit.
 - Database: MongoDB Atlas replica set for transactional billing and payment
   updates.
-- Hosting target: Vercel for the frontend and Render for the backend.
+- Hosting: Render Static Site for the frontend and Render Web Service for the backend.
 
 The frontend calls the Express API under `/api`. The API stores integer paise,
 uses IST calendar helpers for business dates, snapshots prices and taxes into
@@ -37,12 +37,13 @@ render.yaml
 Copy [backend/.env.example](./backend/.env.example) to `backend/.env` for
 local development and keep it untracked. Required production values are
 `NODE_ENV=production`, `MONGODB_URI`, a long random `JWT_SECRET`,
-`CLIENT_URL` set to the deployed Vercel origin, and the SMTP values. If SMTP
+`CLIENT_URL` set to the deployed frontend origin, and the SMTP values. If SMTP
 is blocked or unavailable, configure `RESEND_API_KEY` and
 `RESEND_API_URL` for the HTTPS email fallback.
 
 Set [frontend/.env.example](./frontend/.env.example) `VITE_API_URL` to
-`https://YOUR_RENDER_SERVICE.onrender.com/api` in the Vercel project. Keep
+`https://YOUR_RENDER_SERVICE.onrender.com/api` in the Render Static Site
+environment variables. Keep
 `/api` for local development with the Vite proxy.
 
 ## Local setup
@@ -104,25 +105,24 @@ in [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
 The root [render.yaml](./render.yaml) defines a Node web service rooted at
 `backend`, built with `npm ci`, started with `npm start`, and health-checked at
 `/api/health`. Create the service from the Blueprint, add the Atlas connection
-string and JWT secret, set `CLIENT_URL` to the Vercel origin, and configure
+string and JWT secret, set `CLIENT_URL` to the deployed frontend origin, and configure
 SMTP or the HTTPS email fallback. Atlas Network Access must allow the Render
 service; the hackathon setting can use `0.0.0.0/0`.
 
-### Vercel frontend
+### Render frontend
 
-Create a Vercel project rooted at `frontend`, set `VITE_API_URL` to the Render
-API URL plus `/api`, and deploy. [frontend/vercel.json](./frontend/vercel.json)
-rewrites every client-side route to `index.html`, so deep links continue to
-work after refresh.
+Create a Render Static Site rooted at `frontend`, use `npm ci && npm run build`
+as the build command, publish `dist`, set `VITE_API_URL` to the Render API URL
+plus `/api`, and add a rewrite from `/*` to `/index.html` so deep links
+continue to work after refresh.
 
 ### Deployed URLs
 
-Deployment credentials and final service names were not available in this
-workspace. Fill these values after deployment:
+The current production deployment is:
 
-- Frontend: `https://<vercel-project>.vercel.app`
-- Backend: `https://<render-service>.onrender.com`
-- API health: `https://<render-service>.onrender.com/api/health`
+- Frontend: `https://subscription-management-system-2-4jal.onrender.com`
+- Backend: `https://subscription-management-system-uh36.onrender.com`
+- API health: `https://subscription-management-system-uh36.onrender.com/api/health`
 
 ## SRS notes
 
