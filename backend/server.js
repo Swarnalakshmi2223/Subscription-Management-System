@@ -11,6 +11,7 @@ import taxRoutes from './routes/taxRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import planRoutes from './routes/planRoutes.js';
 import quotationTemplateRoutes from './routes/quotationTemplateRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is not set in .env');
@@ -39,6 +40,7 @@ app.use('/api/taxes', taxRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/quotation-templates', quotationTemplateRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
