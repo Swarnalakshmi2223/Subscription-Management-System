@@ -140,6 +140,12 @@ const incrementDiscountUsage = async (discountId, session) => {
   }
 };
 
+const loadActiveDiscounts = () =>
+  Discount.find({
+    isActive: true,
+    appliesTo: { $in: ['products', 'subscriptions'] },
+  }).lean();
+
 /**
  * Generate the next due invoice for an active subscription. This is the
  * shared generation path for the manual endpoint and the recurring billing
@@ -148,15 +154,13 @@ const incrementDiscountUsage = async (discountId, session) => {
 export const generateInvoiceForSubscription = async ({
   subscriptionId,
   now = new Date(),
+  discounts: suppliedDiscounts,
 }) => {
   if (!mongoose.isValidObjectId(subscriptionId)) {
     throw new AppError('Invalid subscription ID', 400);
   }
 
-  const discounts = await Discount.find({
-    isActive: true,
-    appliesTo: { $in: ['products', 'subscriptions'] },
-  }).lean();
+  const discounts = suppliedDiscounts ?? (await loadActiveDiscounts());
   const excludedDiscountIds = new Set();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -224,10 +228,12 @@ export const generateInvoiceForSubscription = async ({
       });
     } catch (error) {
       if (error.code === 11000) {
-        throw new AppError(
+        const duplicateError = new AppError(
           'An invoice already exists for this subscription billing period',
           409
         );
+        duplicateError.code = 'DUPLICATE_BILLING_PERIOD';
+        throw duplicateError;
       }
 
       if (
@@ -257,4 +263,56 @@ export const generateInvoiceForSubscription = async ({
   }
 
   throw new AppError('Unable to generate invoice', 409);
+};
+
+/**
+ * Advance a subscription past a period that was already invoiced by another
+ * worker. The billing runner uses this only after a duplicate-period error.
+ */
+export const advanceAlreadyBilledPeriod = async ({
+  subscriptionId,
+  now = new Date(),
+}) => {
+  if (!mongoose.isValidObjectId(subscriptionId)) {
+    throw new AppError('Invalid subscription ID', 400);
+  }
+
+  const session = await mongoose.startSession();
+  let advanced = false;
+
+  try {
+    await session.withTransaction(async () => {
+      const subscription = await getSubscriptionForBilling(
+        subscriptionId,
+        session
+      );
+      const context = buildInvoiceContext(subscription, now);
+      const existing = await Invoice.findOne({
+        subscriptionId: subscription._id,
+        billingPeriodKey: context.billingPeriodKey,
+      })
+        .select('_id')
+        .session(session)
+        .lean();
+
+      if (!existing) return;
+
+      const updated = await Subscription.updateOne(
+        { _id: subscription._id, periodsBilled: context.periodsBilled },
+        {
+          $set: {
+            periodsBilled: context.periodsBilled + 1,
+            nextBillingDate: context.nextPeriodStart,
+          },
+        },
+        { session }
+      );
+
+      advanced = updated.modifiedCount === 1;
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return advanced;
 };
