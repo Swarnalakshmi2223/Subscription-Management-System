@@ -54,6 +54,75 @@ export const me = asyncHandler(async (req, res) => {
   res.json({ success: true, user: req.user });
 });
 
+// PATCH /api/auth/profile: update only fields that belong to the user's profile.
+export const updateProfile = asyncHandler(async (req, res) => {
+  const body = req.body ?? {};
+  const allowedFields = ['name', 'phone', 'company', 'address'];
+  const unknownFields = Object.keys(body).filter((field) => !allowedFields.includes(field));
+
+  if (unknownFields.length > 0) {
+    throw new AppError(
+      `Fields cannot be updated: ${unknownFields.join(', ')}`,
+      400
+    );
+  }
+
+  const updates = {};
+
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
+      throw new AppError('Name must be a non-empty string', 400);
+    }
+    updates.name = body.name.trim();
+  }
+
+  for (const field of ['phone', 'company']) {
+    if (body[field] !== undefined) {
+      if (typeof body[field] !== 'string') {
+        throw new AppError(`${field} must be text`, 400);
+      }
+      updates[field] = cleanString(body[field]);
+    }
+  }
+
+  if (body.address !== undefined) {
+    if (!body.address || typeof body.address !== 'object' || Array.isArray(body.address)) {
+      throw new AppError('Address must be an object', 400);
+    }
+
+    const allowedAddressFields = ['line1', 'city', 'state', 'zip', 'country'];
+    const unknownAddressFields = Object.keys(body.address).filter(
+      (field) => !allowedAddressFields.includes(field)
+    );
+    if (unknownAddressFields.length > 0) {
+      throw new AppError(
+        `Address fields cannot be updated: ${unknownAddressFields.join(', ')}`,
+        400
+      );
+    }
+
+    updates.address = {};
+    for (const field of allowedAddressFields) {
+      if (body.address[field] !== undefined) {
+        if (typeof body.address[field] !== 'string') {
+          throw new AppError(`Address ${field} must be text`, 400);
+        }
+        updates.address[field] = cleanString(body.address[field]);
+      }
+    }
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updates },
+    { returnDocument: 'after', runValidators: true }
+  );
+
+  if (!user) throw new AppError('Account not found', 404);
+
+  res.json({ success: true, message: 'Profile updated successfully', user });
+});
+
 const RESET_MESSAGE = 'If an account exists for that email, a reset link has been sent.';
 
 // POST /api/auth/forgot-password: the answer is the same whether or not the email exists

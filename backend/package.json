@@ -10,7 +10,8 @@
     "seed:admin": "node seed/seedAdmin.js",
     "test:billing": "node scripts/testBilling.js",
     "test:payments": "node scripts/testPayments.js",
-    "test:reports": "node scripts/testReports.js"
+    "test:reports": "node scripts/testReports.js",
+    "test:ownership": "node scripts/testOwnership.js"
   },
   "keywords": [],
   "author": "",

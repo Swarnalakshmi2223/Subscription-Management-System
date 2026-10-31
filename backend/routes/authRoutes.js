@@ -7,7 +7,8 @@ import {
   login,
   me,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  updateProfile,
 } from '../controllers/authController.js';
 
 import { protect } from '../middleware/auth.js';
@@ -28,6 +29,7 @@ const router = Router();
 router.post('/register', authLimiter, register);
 router.post('/login', authLimiter, login);
 router.get('/me', protect, me);
+router.patch('/profile', protect, updateProfile);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/reset-password', authLimiter, resetPassword);
 
