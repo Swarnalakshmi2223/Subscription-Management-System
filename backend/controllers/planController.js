@@ -4,6 +4,7 @@ import Plan from '../models/Plan.js';
 import Product from '../models/Product.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { parsePagination, pageMeta, escapeRegex } from '../utils/query.js';
 
 const billingPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
 
@@ -93,14 +94,43 @@ const validatePlanDates = (startDate, endDate) => {
 // GET /api/plans
 // Admin and Staff
 export const getPlans = asyncHandler(async (req, res) => {
-  const plans = await Plan.find()
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter = {};
+
+  if (typeof req.query.search === 'string' && req.query.search.trim()) {
+    filter.name = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+  }
+
+  if (req.query.active !== undefined) {
+    if (!['true', 'false'].includes(req.query.active)) {
+      throw new AppError('active must be true or false', 400);
+    }
+    filter.isActive = req.query.active === 'true';
+  }
+
+  if (req.query.billingPeriod !== undefined) {
+    if (!billingPeriods.includes(req.query.billingPeriod)) {
+      throw new AppError('Invalid billing period filter', 400);
+    }
+    filter.billingPeriod = req.query.billingPeriod;
+  }
+
+  const query = Plan.find(filter)
+    .select('-__v')
     .populate('productId', 'name type salesPrice isActive')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+  const [items, total] = await Promise.all([
+    query,
+    Plan.countDocuments(filter),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: plans.length,
-    data: plans,
+    items,
+    meta: pageMeta(page, limit, total),
   });
 });
 

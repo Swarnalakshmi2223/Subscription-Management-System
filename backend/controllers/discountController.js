@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import Subscription from '../models/Subscription.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { parsePagination, pageMeta, escapeRegex } from '../utils/query.js';
 
 const validateId = (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -140,13 +141,14 @@ const validateDiscountData = async (data) => {
 
 // GET /api/discounts
 export const getDiscounts = asyncHandler(async (req, res) => {
-  const {
-    type,
-    appliesTo,
-    isActive,
-  } = req.query;
+  const { page, limit, skip } = parsePagination(req.query);
+  const { type, appliesTo, isActive } = req.query;
 
   const filter = {};
+
+  if (typeof req.query.search === 'string' && req.query.search.trim()) {
+    filter.name = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+  }
 
   if (type) {
     if (!['fixed', 'percentage'].includes(type)) {
@@ -172,15 +174,23 @@ export const getDiscounts = asyncHandler(async (req, res) => {
     filter.isActive = isActive === 'true';
   }
 
-  const discounts = await Discount.find(filter)
+  const query = Discount.find(filter)
+    .select('-__v')
     .populate('productIds', 'name type')
     .populate('subscriptionIds', 'number status')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+  const [items, total] = await Promise.all([
+    query,
+    Discount.countDocuments(filter),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: discounts.length,
-    data: discounts,
+    items,
+    meta: pageMeta(page, limit, total),
   });
 });
 

@@ -71,6 +71,7 @@ const quotationTemplateSchema = new mongoose.Schema(
 
 quotationTemplateSchema.index({ isActive: 1, createdAt: -1 });
 quotationTemplateSchema.index({ planId: 1 });
+quotationTemplateSchema.index({ name: 1 });
 
 quotationTemplateSchema.set('toJSON', {
   transform: (doc, ret) => {

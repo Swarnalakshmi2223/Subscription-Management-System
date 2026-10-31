@@ -23,8 +23,8 @@ const router = express.Router();
 router.use(protect);
 
 // Admin and staff can view subscriptions.
-router.get('/', authorize('admin', 'staff'), getSubscriptions);
-router.get('/:id', authorize('admin', 'staff'), getSubscription);
+router.get('/', authorize('admin', 'staff', 'customer'), getSubscriptions);
+router.get('/:id', authorize('admin', 'staff', 'customer'), getSubscription);
 
 // Admin and staff can create subscriptions.
 router.post('/', authorize('admin', 'staff'), createSubscription);

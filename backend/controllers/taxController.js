@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Tax from '../models/Tax.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { parsePagination, pageMeta } from '../utils/query.js';
 
 const escapeRegex = (value) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -27,12 +28,37 @@ const validateRate = (ratePercent) => {
 // GET /api/taxes
 // Admin and Staff
 export const getTaxes = asyncHandler(async (req, res) => {
-  const taxes = await Tax.find().sort({ name: 1 });
+  const { page, limit, skip } = parsePagination(req.query);
+  const [items, total] = await Promise.all([
+    Tax.find().select('-__v').sort({ name: 1 }).skip(skip).limit(limit).lean(),
+    Tax.countDocuments(),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: taxes.length,
-    data: taxes,
+    items,
+    meta: pageMeta(page, limit, total),
+  });
+});
+
+// GET /api/taxes/:id
+// Admin and Staff
+export const getTax = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    throw new AppError('Invalid tax ID', 400);
+  }
+
+  const tax = await Tax.findById(id).select('-__v').lean();
+
+  if (!tax) {
+    throw new AppError('Tax not found', 404);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: tax,
   });
 });
 

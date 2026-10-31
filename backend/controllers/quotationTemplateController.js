@@ -5,6 +5,7 @@ import Plan from '../models/Plan.js';
 import Product from '../models/Product.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { parsePagination, pageMeta, escapeRegex } from '../utils/query.js';
 
 const validateName = (name) => {
   if (typeof name !== 'string' || !name.trim()) {
@@ -123,14 +124,37 @@ const populateTemplate = (query) =>
 // GET /api/quotation-templates
 // Admin and Staff
 export const getTemplates = asyncHandler(async (req, res) => {
-  const templates = await populateTemplate(
-    QuotationTemplate.find().sort({ createdAt: -1 })
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter = {};
+
+  if (typeof req.query.search === 'string' && req.query.search.trim()) {
+    filter.name = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+  }
+
+  if (req.query.active !== undefined) {
+    if (!['true', 'false'].includes(req.query.active)) {
+      throw new AppError('active must be true or false', 400);
+    }
+    filter.isActive = req.query.active === 'true';
+  }
+
+  const query = populateTemplate(
+    QuotationTemplate.find(filter)
+      .select('-__v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
   );
+  const [items, total] = await Promise.all([
+    query,
+    QuotationTemplate.countDocuments(filter),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: templates.length,
-    data: templates,
+    items,
+    meta: pageMeta(page, limit, total),
   });
 });
 

@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import Tax from '../models/Tax.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { parsePagination, pageMeta, escapeRegex } from '../utils/query.js';
 
 const validateName = (name) => {
   if (typeof name !== 'string' || !name.trim()) {
@@ -74,14 +75,37 @@ const validateTax = async (taxId) => {
 // GET /api/products
 // Admin and Staff
 export const getProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find()
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter = {};
+
+  if (typeof req.query.search === 'string' && req.query.search.trim()) {
+    const search = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    filter.$or = [{ name: search }, { type: search }];
+  }
+
+  if (req.query.active !== undefined) {
+    if (!['true', 'false'].includes(req.query.active)) {
+      throw new AppError('active must be true or false', 400);
+    }
+    filter.isActive = req.query.active === 'true';
+  }
+
+  const query = Product.find(filter)
+    .select('-__v')
     .populate('taxId', 'name ratePercent isActive')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+  const [items, total] = await Promise.all([
+    query,
+    Product.countDocuments(filter),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: products.length,
-    data: products,
+    items,
+    meta: pageMeta(page, limit, total),
   });
 });
 

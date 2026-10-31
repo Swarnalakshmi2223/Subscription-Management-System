@@ -77,6 +77,8 @@ const planSchema = new mongoose.Schema(
 
 planSchema.index({ productId: 1 });
 planSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
+planSchema.index({ name: 1 });
+planSchema.index({ billingPeriod: 1, isActive: 1 });
 
 planSchema.set('toJSON', {
   transform: (doc, ret) => {

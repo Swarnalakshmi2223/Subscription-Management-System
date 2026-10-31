@@ -21,10 +21,19 @@ const subscriptionLineSchema = new mongoose.Schema(
         message: 'Quantity must be a whole number',
       },
     },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     unitPrice: {
       type: Number,
       required: true,
       min: 0,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: 'Unit price must be an integer in paise',
+      },
     },
     taxId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -36,11 +45,25 @@ const subscriptionLineSchema = new mongoose.Schema(
       required: true,
       min: 0,
       default: 0,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: 'Tax amount must be an integer in paise',
+      },
+    },
+    taxRatePercent: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100,
     },
     amount: {
       type: Number,
       required: true,
       min: 0,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: 'Amount must be an integer in paise',
+      },
     },
   },
   { _id: false }
@@ -104,11 +127,6 @@ const subscriptionSchema = new mongoose.Schema(
       },
     },
 
-    discountIds: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Discount',
-    }],
-
     quotationValidUntil: {
       type: Date,
       default: null,
@@ -117,6 +135,16 @@ const subscriptionSchema = new mongoose.Schema(
     nextBillingDate: {
       type: Date,
       default: null,
+    },
+
+    periodsBilled: {
+      type: Number,
+      default: 0,
+      min: 0,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: 'Billed periods must be a whole number',
+      },
     },
 
     isPaused: {
@@ -130,6 +158,9 @@ const subscriptionSchema = new mongoose.Schema(
 subscriptionSchema.index({ status: 1, nextBillingDate: 1 });
 subscriptionSchema.index({ customerId: 1, status: 1 });
 subscriptionSchema.index({ planId: 1 });
+subscriptionSchema.index({ status: 1, isPaused: 1, startDate: 1 });
+subscriptionSchema.index({ planId: 1, startDate: 1 });
+subscriptionSchema.index({ customerId: 1, startDate: 1 });
 
 subscriptionSchema.set('toJSON', {
   transform: (doc, ret) => {

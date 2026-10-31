@@ -9,6 +9,7 @@ import QuotationTemplate from '../models/QuotationTemplate.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { addPeriod, startOfDayIST } from '../utils/dates.js';
+import { parsePagination, pageMeta, escapeRegex } from '../utils/query.js';
 
 import { buildSubscriptionLines } from '../services/pricingService.js';
 
@@ -44,14 +45,79 @@ const populateSubscription = (query) =>
 
 // GET /api/subscriptions
 export const getSubscriptions = asyncHandler(async (req, res) => {
-  const subscriptions = await populateSubscription(
-    Subscription.find().sort({ createdAt: -1 })
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter = {};
+
+  if (req.user.role === 'customer') {
+    filter.customerId = req.user._id;
+  } else if (req.query.customerId !== undefined) {
+    validateId(req.query.customerId, 'customer ID');
+    filter.customerId = req.query.customerId;
+  }
+
+  if (req.query.planId !== undefined) {
+    validateId(req.query.planId, 'plan ID');
+    filter.planId = req.query.planId;
+  }
+
+  if (req.query.status !== undefined) {
+    if (!['Draft', 'Quotation', 'Confirmed', 'Active', 'Closed'].includes(req.query.status)) {
+      throw new AppError('Invalid subscription status filter', 400);
+    }
+    filter.status = req.query.status;
+  }
+
+  if (req.query.paused !== undefined) {
+    if (!['true', 'false'].includes(req.query.paused)) {
+      throw new AppError('paused must be true or false', 400);
+    }
+    filter.isPaused = req.query.paused === 'true';
+  }
+
+  if (req.query.from !== undefined || req.query.to !== undefined) {
+    filter.startDate = {};
+    if (req.query.from !== undefined) {
+      const from = new Date(req.query.from);
+      if (Number.isNaN(from.getTime())) throw new AppError('Invalid from date', 400);
+      filter.startDate.$gte = startOfDayIST(from);
+    }
+    if (req.query.to !== undefined) {
+      const to = new Date(req.query.to);
+      if (Number.isNaN(to.getTime())) throw new AppError('Invalid to date', 400);
+      filter.startDate.$lt = addPeriod(startOfDayIST(to), 'daily');
+    }
+  }
+
+  if (typeof req.query.search === 'string' && req.query.search.trim()) {
+    const search = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    const matchingCustomers = await User.find({
+      $or: [{ name: search }, { email: search }],
+    }).select('_id').lean();
+    filter.$or = [
+      { number: search },
+      ...(matchingCustomers.length
+        ? [{ customerId: { $in: matchingCustomers.map((user) => user._id) } }]
+        : []),
+    ];
+  }
+
+  const query = populateSubscription(
+    Subscription.find(filter)
+      .select('-__v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
   );
+  const [items, total] = await Promise.all([
+    query,
+    Subscription.countDocuments(filter),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: subscriptions.length,
-    data: subscriptions,
+    items,
+    meta: pageMeta(page, limit, total),
   });
 });
 
@@ -59,8 +125,11 @@ export const getSubscriptions = asyncHandler(async (req, res) => {
 export const getSubscription = asyncHandler(async (req, res) => {
   validateId(req.params.id, 'subscription ID');
 
+  const filter = { _id: req.params.id };
+  if (req.user.role === 'customer') filter.customerId = req.user._id;
+
   const subscription = await populateSubscription(
-    Subscription.findById(req.params.id)
+    Subscription.findOne(filter)
   );
 
   if (!subscription) {
@@ -82,11 +151,11 @@ export const createSubscription = asyncHandler(async (req, res) => {
     startDate,
     expiryDate,
     paymentTerms = 'immediate',
+    lines,
   } = req.body ?? {};
 
   validateId(customerId, 'customer ID');
   validateId(planId, 'plan ID');
-  validateId(templateId, 'quotation template ID');
 
   if (!startDate || !expiryDate) {
     throw new AppError('Start date and expiry date are required', 400);
@@ -131,35 +200,50 @@ export const createSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Subscription starts after the plan availability date', 400);
   }
 
-  const template = await QuotationTemplate.findById(templateId);
+  let sourceLines = lines;
+  let selectedTemplateId = null;
 
-  if (!template || !template.isActive) {
-    throw new AppError('Active quotation template not found', 404);
+  if (templateId !== undefined && templateId !== null) {
+    validateId(templateId, 'quotation template ID');
+    if (Array.isArray(lines)) {
+      throw new AppError('Provide either templateId or lines, not both', 400);
+    }
+
+    const template = await QuotationTemplate.findById(templateId);
+
+    if (!template || !template.isActive) {
+      throw new AppError('Active quotation template not found', 404);
+    }
+
+    if (String(template.planId) !== String(plan._id)) {
+      throw new AppError(
+        'The quotation template does not belong to the selected plan',
+        400
+      );
+    }
+
+    sourceLines = template.lines;
+    selectedTemplateId = template._id;
+  } else if (!Array.isArray(lines) || lines.length === 0) {
+    throw new AppError('Provide either templateId or at least one line', 400);
   }
 
-  if (!template.planId.equals(plan._id)) {
-    throw new AppError(
-      'The quotation template does not belong to the selected plan',
-      400
-    );
-  }
-
-  const lines = await buildSubscriptionLines(template, plan);
+  const pricedLines = await buildSubscriptionLines({ lines: sourceLines }, plan);
   const number = await generateSubscriptionNumber();
 
   const subscription = await Subscription.create({
     number,
     customerId,
     planId,
-    templateId,
+    templateId: selectedTemplateId,
     status: 'Draft',
     startDate: start,
     expiryDate: expiry,
     paymentTerms,
-    lines,
-    discountIds: [],
+    lines: pricedLines,
     quotationValidUntil: null,
     nextBillingDate: null,
+    periodsBilled: 0,
     isPaused: false,
   });
 
@@ -333,6 +417,7 @@ export const activateSubscription = asyncHandler(async (req, res) => {
   }
 
   subscription.status = 'Active';
+  subscription.periodsBilled = 0;
   // Billing compares against midnight (IST), so store midnight (IST).
   subscription.nextBillingDate = startOfDayIST(subscription.startDate);
 
@@ -397,15 +482,28 @@ export const resumeSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Only paused Active subscriptions can be resumed', 400);
   }
 
-  // FIX: billing periods that fell inside the pause are not billed.
-  // Move nextBillingDate forward to the first period start on or after today.
+  // Billing periods that fell inside the pause are not billed. Recompute from
+  // the original start date so month-end periods never drift.
   const today = startOfDayIST();
-  let next = subscription.nextBillingDate;
+  let periodsBilled = Number.isSafeInteger(subscription.periodsBilled)
+    ? subscription.periodsBilled
+    : 0;
+  let next = addPeriod(
+    subscription.startDate,
+    subscription.planId.billingPeriod,
+    periodsBilled
+  );
 
   while (next && next < today && next <= subscription.expiryDate) {
-    next = addPeriod(next, subscription.planId.billingPeriod);
+    periodsBilled += 1;
+    next = addPeriod(
+      subscription.startDate,
+      subscription.planId.billingPeriod,
+      periodsBilled
+    );
   }
 
+  subscription.periodsBilled = periodsBilled;
   subscription.nextBillingDate = next;
   subscription.isPaused = false;
   await subscription.save();
@@ -483,7 +581,11 @@ export const renewSubscription = asyncHandler(async (req, res) => {
   if (subscription.status === 'Closed') {
     subscription.status = 'Active';
     subscription.isPaused = false;
-    subscription.nextBillingDate = startOfDayIST(oldExpiryDate);
+    subscription.nextBillingDate = addPeriod(
+      subscription.startDate,
+      subscription.planId.billingPeriod,
+      subscription.periodsBilled
+    );
   }
 
   await subscription.save();

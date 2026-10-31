@@ -126,6 +126,7 @@ discountSchema.pre('validate', function () {
 // Indexes for discount filtering.
 discountSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
 discountSchema.index({ appliesTo: 1, isActive: 1 });
+discountSchema.index({ name: 1 });
 
 const Discount = mongoose.model('Discount', discountSchema);
 
