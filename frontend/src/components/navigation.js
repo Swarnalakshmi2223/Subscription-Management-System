@@ -3,6 +3,8 @@ import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined';
 import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
 import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
 import ViewModuleOutlined from '@mui/icons-material/ViewModuleOutlined';
+import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
+import LocalOfferOutlined from '@mui/icons-material/LocalOfferOutlined';
 
 export const navItems = [
   { label: 'Dashboard', to: '/', icon: SpaceDashboardOutlined, roles: ['admin', 'staff', 'customer'], end: true },
@@ -11,6 +13,8 @@ export const navItems = [
   { label: 'Taxes', to: '/taxes', icon: AccountBalanceOutlined, roles: ['admin', 'staff'] },
   { label: 'Products', to: '/products', icon: Inventory2Outlined, roles: ['admin', 'staff'] },
   { label: 'Plans', to: '/plans', icon: ViewModuleOutlined, roles: ['admin', 'staff'] },
+  { label: 'Quotation templates', to: '/quotation-templates', icon: DescriptionOutlined, roles: ['admin', 'staff'] },
+  { label: 'Discounts', to: '/discounts', icon: LocalOfferOutlined, roles: ['admin', 'staff'] },
 ];
 
 export const roleColor = { admin: 'primary', staff: 'info', customer: 'default' };
