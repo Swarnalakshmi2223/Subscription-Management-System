@@ -97,7 +97,7 @@ export default function Register() {
           <Button type="submit" variant="contained" size="large" disabled={loading || !canSubmit}>
             {loading ? 'Creating account...' : 'Create account'}
           </Button>
-          <Typography variant="body2" textAlign="center" color="text.secondary">
+        <Typography variant="body2" sx={{ textAlign: 'center' }} color="text.secondary">
             Already have an account?{' '}
             <Link component={RouterLink} to="/login" fontWeight={600}>
               Sign in

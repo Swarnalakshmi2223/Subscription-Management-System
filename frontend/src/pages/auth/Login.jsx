@@ -67,7 +67,7 @@ export default function Login() {
           <Button type="submit" variant="contained" size="large" disabled={loading || !form.email || !form.password}>
             {loading ? 'Signing in...' : 'Sign in'}
           </Button>
-          <Typography variant="body2" textAlign="center" color="text.secondary">
+        <Typography variant="body2" sx={{ textAlign: 'center' }} color="text.secondary">
             New to Brightloop?{' '}
             <Link component={RouterLink} to="/register" fontWeight={600}>
               Create an account
