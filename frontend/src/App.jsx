@@ -19,6 +19,9 @@ import Discounts from './pages/catalog/Discounts';
 import Subscriptions from './pages/subscriptions/Subscriptions';
 import SubscriptionCreate from './pages/subscriptions/SubscriptionCreate';
 import SubscriptionDetail from './pages/subscriptions/SubscriptionDetail';
+import Invoices from './pages/invoices/Invoices';
+import InvoiceDetail from './pages/invoices/InvoiceDetail';
+import Payments from './pages/payments/Payments';
 
 export default function App() {
   return (
@@ -54,6 +57,9 @@ export default function App() {
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="subscriptions/new" element={<SubscriptionCreate />} />
             <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
+            <Route path="invoices" element={<Invoices />} />
+            <Route path="invoices/:id" element={<InvoiceDetail />} />
+            <Route path="payments" element={<Payments />} />
           </Route>
         </Route>
       </Route>
