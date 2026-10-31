@@ -61,6 +61,9 @@ export default function Login() {
               },
             }}
           />
+        <Link component={RouterLink} to="/forgot-password" variant="body2" sx={{ alignSelf: 'flex-end', mt: -1 }}>
+          Forgot password?
+        </Link>
           <Button type="submit" variant="contained" size="large" disabled={loading || !form.email || !form.password}>
             {loading ? 'Signing in...' : 'Sign in'}
           </Button>
