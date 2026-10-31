@@ -11,6 +11,9 @@ import ResetPassword from './pages/auth/ResetPassword';
 
 import Dashboard from './pages/Dashboard';
 import Users from './pages/users/Users';
+import Taxes from './pages/catalog/Taxes';
+import Products from './pages/catalog/Products';
+import Plans from './pages/catalog/Plans';
 
 export default function App() {
   return (
@@ -36,6 +39,9 @@ export default function App() {
 
           <Route element={<ProtectedRoute roles={['admin', 'staff']} />}>
             <Route path="users" element={<Users />} />
+            <Route path="taxes" element={<Taxes />} />
+            <Route path="products" element={<Products />} />
+            <Route path="plans" element={<Plans />} />
           </Route>
         </Route>
       </Route>
