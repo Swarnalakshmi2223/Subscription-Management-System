@@ -7,10 +7,13 @@ import SearchIcon from '@mui/icons-material/Search';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import PageHeader from '../../components/PageHeader';
 import AddStaffDialog from './AddStaffDialog';
+import EmptyState from '../../components/EmptyState';
+import ErrorAlert from '../../components/ErrorAlert';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { apiError } from '../../utils/errors';
 import { roleColor } from '../../components/navigation';
+import { formatDateIST } from '../../utils/dates';
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -24,7 +27,7 @@ export default function Users() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -38,7 +41,7 @@ export default function Users() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setError(null);
     try {
       const params = { page: page + 1, limit, search: query || undefined };
       if (isAdmin && role !== 'all') params.role = role;
@@ -46,7 +49,7 @@ export default function Users() {
       setItems(data.items);
       setTotal(data.meta.total);
     } catch (err) {
-      setError(apiError(err, 'Failed to load users').message);
+      setError(apiError(err, 'Failed to load users'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +87,7 @@ export default function Users() {
       <Card>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2, justifyContent: 'space-between', alignItems: { md: 'center' } }}>
           {isAdmin ? (
-            <Tabs value={role} onChange={(e, v) => { setRole(v); setPage(0); }}>
+            <Tabs value={role} onChange={(e, v) => { setRole(v); setPage(0); }} aria-label="User role filter">
               <Tab value="all" label="All" />
               <Tab value="staff" label="Staff" />
               <Tab value="customer" label="Customers" />
@@ -94,7 +97,7 @@ export default function Users() {
           )}
           <TextField
             size="small"
-            placeholder="Search name or email"
+            label={isAdmin ? 'Search users' : 'Search customers'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ maxWidth: { md: 320 } }}
@@ -102,10 +105,10 @@ export default function Users() {
           />
         </Stack>
         {loading && <LinearProgress />}
-        {error && <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>}
+        {error && <ErrorAlert error={error} sx={{ m: 2 }} />}
 
         <TableContainer>
-          <Table>
+          <Table aria-label={isAdmin ? 'Users table' : 'Customers table'}>
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
@@ -132,7 +135,7 @@ export default function Users() {
                   <TableCell>
                     <Chip size="small" variant="outlined" label={u.isActive ? 'Active' : 'Inactive'} color={u.isActive ? 'success' : 'default'} />
                   </TableCell>
-                  <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{formatDateIST(u.createdAt)}</TableCell>
                   {isAdmin && (
                     <TableCell align="right">
                       {u._id === me._id ? (
@@ -148,8 +151,8 @@ export default function Users() {
               ))}
               {!loading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 6 : 5} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                    No users found
+                  <TableCell colSpan={isAdmin ? 6 : 5} sx={{ p: 0 }}>
+                    <EmptyState title={isAdmin ? 'No users found' : 'No customers found'} description={isAdmin ? 'New customer registrations and staff accounts will appear here.' : 'Customer accounts will appear here when they register.'} />
                   </TableCell>
                 </TableRow>
               )}

@@ -22,7 +22,8 @@ export default function AddStaffDialog({ open, onClose, onCreated }) {
     onClose();
   };
 
-  const submit = async () => {
+  const submit = async (event) => {
+    event.preventDefault();
     setError(null);
     setSaving(true);
     try {
@@ -39,22 +40,24 @@ export default function AddStaffDialog({ open, onClose, onCreated }) {
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="xs">
       <DialogTitle>Add staff member</DialogTitle>
+      <form onSubmit={submit} noValidate>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <ErrorAlert error={error} />
           <TextField label="Full name" name="name" value={form.name} onChange={onChange} autoFocus required />
-          <TextField label="Email" name="email" type="email" value={form.email} onChange={onChange} required />
-          <TextField label="Phone (optional)" name="phone" value={form.phone} onChange={onChange} />
-          <TextField label="Temporary password" name="password" type="text" value={form.password} onChange={onChange} required />
+          <TextField label="Email" name="email" type="email" value={form.email} onChange={onChange} required autoComplete="email" />
+          <TextField label="Phone (optional)" name="phone" value={form.phone} onChange={onChange} autoComplete="tel" />
+          <TextField label="Temporary password" name="password" type="text" value={form.password} onChange={onChange} required autoComplete="new-password" />
           <PasswordChecklist password={form.password} />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={close}>Cancel</Button>
-        <Button variant="contained" onClick={submit} disabled={saving || !canSubmit}>
+        <Button type="button" onClick={close}>Cancel</Button>
+        <Button type="submit" variant="contained" disabled={saving || !canSubmit}>
           {saving ? 'Creating...' : 'Create staff'}
         </Button>
       </DialogActions>
+      </form>
     </Dialog>
   );
 }
