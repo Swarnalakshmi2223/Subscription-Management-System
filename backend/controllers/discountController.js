@@ -33,6 +33,11 @@ const validateDiscountData = async (data) => {
     throw new AppError('Discount value must be greater than zero', 400);
   }
 
+  // FIX: a fixed discount is money, so it must be a whole number of paise.
+  if (type === 'fixed' && !Number.isSafeInteger(value)) {
+    throw new AppError('A fixed discount must be a whole number of paise', 400);
+  }
+
   if (type === 'percentage' && value > 100) {
     throw new AppError('Percentage discount cannot exceed 100', 400);
   }
@@ -212,9 +217,9 @@ export const createDiscount = asyncHandler(async (req, res) => {
     productIds = [],
     subscriptionIds = [],
     isActive = true,
-  } = req.body;
+  } = req.body ?? {};
 
-  if (!name || !name.trim()) {
+  if (typeof name !== 'string' || !name.trim()) {
     throw new AppError('Discount name is required', 400);
   }
 
@@ -236,7 +241,7 @@ export const createDiscount = asyncHandler(async (req, res) => {
   });
 
   const discount = await Discount.create({
-    name,
+    name: name.trim(),
     type,
     value,
     minPurchase,
@@ -282,17 +287,26 @@ export const updateDiscount = asyncHandler(async (req, res) => {
     'isActive',
   ];
 
+  const body = req.body ?? {};
   const updatedData = {};
 
   for (const field of allowedFields) {
-    if (req.body[field] !== undefined) {
-      updatedData[field] = req.body[field];
+    if (body[field] !== undefined) {
+      updatedData[field] = body[field];
     }
+  }
+
+  if (Object.keys(updatedData).length === 0) {
+    throw new AppError('Provide discount details to update', 400);
   }
 
   if (updatedData.name !== undefined &&
       (typeof updatedData.name !== 'string' || !updatedData.name.trim())) {
     throw new AppError('Discount name cannot be empty', 400);
+  }
+
+  if (typeof updatedData.name === 'string') {
+    updatedData.name = updatedData.name.trim();
   }
 
   if (
@@ -334,16 +348,17 @@ export const updateDiscount = asyncHandler(async (req, res) => {
 export const toggleDiscountStatus = asyncHandler(async (req, res) => {
   validateId(req.params.id);
 
-  const { isActive } = req.body;
+  const { isActive } = req.body ?? {};
 
   if (typeof isActive !== 'boolean') {
     throw new AppError('isActive must be true or false', 400);
   }
 
+  // FIX: returnDocument replaces the deprecated "new: true" option.
   const discount = await Discount.findByIdAndUpdate(
     req.params.id,
     { isActive },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   );
 
   if (!discount) {

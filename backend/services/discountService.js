@@ -1,5 +1,6 @@
 import Discount from '../models/Discount.js';
 import { AppError } from '../utils/AppError.js';
+import { istDateString } from '../utils/dates.js';
 
 // Convert an ID or populated reference to a string.
 const getId = (value) => {
@@ -8,15 +9,11 @@ const getId = (value) => {
 
 // Compare calendar dates inclusively.
 const isWithinDateRange = (discount, now) => {
-  const currentDate = now.toISOString().slice(0, 10);
-  const startDate = new Date(discount.startDate)
-    .toISOString()
-    .slice(0, 10);
-  const endDate = new Date(discount.endDate)
-    .toISOString()
-    .slice(0, 10);
-
-  return currentDate >= startDate && currentDate <= endDate;
+  const today = istDateString(now);
+  return (
+    today >= istDateString(new Date(discount.startDate)) &&
+    today <= istDateString(new Date(discount.endDate))
+  );
 };
 
 // Check whether a discount has remaining uses.

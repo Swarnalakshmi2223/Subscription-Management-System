@@ -1,4 +1,3 @@
-
 import mongoose from 'mongoose';
 
 import Subscription from '../models/Subscription.js';
@@ -9,15 +8,19 @@ import QuotationTemplate from '../models/QuotationTemplate.js';
 
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { addPeriod, startOfDayIST } from '../utils/dates.js';
 
 import { buildSubscriptionLines } from '../services/pricingService.js';
 
+const PAYMENT_TERMS = ['immediate', 'net15', 'net30'];
+
 // Generate sequential subscription numbers.
 const generateSubscriptionNumber = async () => {
+  // FIX: returnDocument replaces the deprecated "new: true" option.
   const counter = await Counter.findOneAndUpdate(
     { key: 'subscription' },
     { $inc: { seq: 1 } },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
   );
 
   return `SUB-${String(counter.seq).padStart(6, '0')}`;
@@ -29,31 +32,6 @@ const validateId = (id, fieldName) => {
     throw new AppError(`Invalid ${fieldName}`, 400);
   }
 };
-
-// Add a billing period to a date.
-const addBillingPeriod = (date, period) => {
-  const result = new Date(date);
-
-  switch (period) {
-    case 'daily':
-      result.setDate(result.getDate() + 1);
-      break;
-    case 'weekly':
-      result.setDate(result.getDate() + 7);
-      break;
-    case 'monthly':
-      result.setMonth(result.getMonth() + 1);
-      break;
-    case 'yearly':
-      result.setFullYear(result.getFullYear() + 1);
-      break;
-    default:
-      throw new AppError('Invalid billing period', 400);
-  }
-
-  return result;
-};
-
 
 // Populate subscription response.
 const populateSubscription = (query) =>
@@ -104,7 +82,7 @@ export const createSubscription = asyncHandler(async (req, res) => {
     startDate,
     expiryDate,
     paymentTerms = 'immediate',
-  } = req.body;
+  } = req.body ?? {};
 
   validateId(customerId, 'customer ID');
   validateId(planId, 'plan ID');
@@ -114,7 +92,7 @@ export const createSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Start date and expiry date are required', 400);
   }
 
-  if (!['immediate', 'net15', 'net30'].includes(paymentTerms)) {
+  if (!PAYMENT_TERMS.includes(paymentTerms)) {
     throw new AppError('Invalid payment terms', 400);
   }
 
@@ -141,24 +119,16 @@ export const createSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Active subscription plan not found', 404);
   }
 
-  // The subscription start date must be within plan availability dates.
-  const planStart = new Date(plan.startDate);
-  planStart.setHours(0, 0, 0, 0);
+  // FIX: compare calendar days in India time, so the result is the same
+  // on your PC and on the Render server.
+  const selectedStart = startOfDayIST(start);
 
-  const selectedStart = new Date(start);
-  selectedStart.setHours(0, 0, 0, 0);
-
-  if (selectedStart < planStart) {
+  if (selectedStart < startOfDayIST(plan.startDate)) {
     throw new AppError('Subscription starts before the plan availability date', 400);
   }
 
-  if (plan.endDate) {
-    const planEnd = new Date(plan.endDate);
-    planEnd.setHours(23, 59, 59, 999);
-
-    if (selectedStart > planEnd) {
-      throw new AppError('Subscription starts after the plan availability date', 400);
-    }
+  if (selectedStart > startOfDayIST(plan.endDate)) {
+    throw new AppError('Subscription starts after the plan availability date', 400);
   }
 
   const template = await QuotationTemplate.findById(templateId);
@@ -209,13 +179,10 @@ export const createSubscription = asyncHandler(async (req, res) => {
 export const updateSubscription = asyncHandler(async (req, res) => {
   validateId(req.params.id, 'subscription ID');
 
-  const allowedFields = [
-    'startDate',
-    'expiryDate',
-    'paymentTerms',
-  ];
+  const body = req.body ?? {};
+  const allowedFields = ['startDate', 'expiryDate', 'paymentTerms'];
 
-  const unknownFields = Object.keys(req.body).filter(
+  const unknownFields = Object.keys(body).filter(
     (field) => !allowedFields.includes(field)
   );
 
@@ -236,8 +203,8 @@ export const updateSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Only Draft subscriptions can be updated', 400);
   }
 
-  const start = new Date(req.body.startDate ?? subscription.startDate);
-  const expiry = new Date(req.body.expiryDate ?? subscription.expiryDate);
+  const start = new Date(body.startDate ?? subscription.startDate);
+  const expiry = new Date(body.expiryDate ?? subscription.expiryDate);
 
   if (
     Number.isNaN(start.getTime()) ||
@@ -247,12 +214,12 @@ export const updateSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Please provide valid subscription dates', 400);
   }
 
-  if (req.body.paymentTerms !== undefined) {
-    if (!['immediate', 'net15', 'net30'].includes(req.body.paymentTerms)) {
+  if (body.paymentTerms !== undefined) {
+    if (!PAYMENT_TERMS.includes(body.paymentTerms)) {
       throw new AppError('Invalid payment terms', 400);
     }
 
-    subscription.paymentTerms = req.body.paymentTerms;
+    subscription.paymentTerms = body.paymentTerms;
   }
 
   subscription.startDate = start;
@@ -287,10 +254,12 @@ export const sendQuotation = asyncHandler(async (req, res) => {
   }
 
   const validityDays = subscription.templateId?.validityDays || 30;
-  const validUntil = new Date();
 
-  validUntil.setDate(validUntil.getDate() + validityDays);
-  validUntil.setHours(23, 59, 59, 999);
+  // FIX: valid until the very end of the last day, in India time.
+  // addPeriod gives midnight at the start of (today + validityDays + 1).
+  const validUntil = new Date(
+    addPeriod(new Date(), 'daily', validityDays + 1).getTime() - 1
+  );
 
   subscription.status = 'Quotation';
   subscription.quotationValidUntil = validUntil;
@@ -358,18 +327,14 @@ export const activateSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Only Confirmed subscriptions can be activated', 400);
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const start = new Date(subscription.startDate);
-  start.setHours(0, 0, 0, 0);
-
-  if (today < start) {
+  // FIX: calendar-day comparison in India time.
+  if (startOfDayIST() < startOfDayIST(subscription.startDate)) {
     throw new AppError('Subscription cannot be activated before its start date', 400);
   }
 
   subscription.status = 'Active';
-  subscription.nextBillingDate = subscription.startDate;
+  // Billing compares against midnight (IST), so store midnight (IST).
+  subscription.nextBillingDate = startOfDayIST(subscription.startDate);
 
   await subscription.save();
 
@@ -421,7 +386,8 @@ export const pauseSubscription = asyncHandler(async (req, res) => {
 export const resumeSubscription = asyncHandler(async (req, res) => {
   validateId(req.params.id, 'subscription ID');
 
-  const subscription = await Subscription.findById(req.params.id);
+  const subscription = await Subscription.findById(req.params.id)
+    .populate('planId');
 
   if (!subscription) {
     throw new AppError('Subscription not found', 404);
@@ -431,6 +397,16 @@ export const resumeSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Only paused Active subscriptions can be resumed', 400);
   }
 
+  // FIX: billing periods that fell inside the pause are not billed.
+  // Move nextBillingDate forward to the first period start on or after today.
+  const today = startOfDayIST();
+  let next = subscription.nextBillingDate;
+
+  while (next && next < today && next <= subscription.expiryDate) {
+    next = addPeriod(next, subscription.planId.billingPeriod);
+  }
+
+  subscription.nextBillingDate = next;
   subscription.isPaused = false;
   await subscription.save();
 
@@ -456,8 +432,8 @@ export const closeSubscription = asyncHandler(async (req, res) => {
     throw new AppError('Only Active subscriptions can be closed', 400);
   }
 
-  const today = new Date();
-  const hasExpired = today >= subscription.expiryDate;
+  // FIX: calendar-day comparison in India time.
+  const hasExpired = startOfDayIST() >= startOfDayIST(subscription.expiryDate);
 
   if (!hasExpired && !subscription.planId.allowEarlyClose) {
     throw new AppError('Early closure is not allowed for this plan', 400);
@@ -495,7 +471,9 @@ export const renewSubscription = asyncHandler(async (req, res) => {
   }
 
   const oldExpiryDate = new Date(subscription.expiryDate);
-  const newExpiryDate = addBillingPeriod(
+
+  // FIX: addPeriod never overflows (31 Jan + 1 month = 28 Feb).
+  const newExpiryDate = addPeriod(
     oldExpiryDate,
     subscription.planId.billingPeriod
   );
@@ -505,7 +483,7 @@ export const renewSubscription = asyncHandler(async (req, res) => {
   if (subscription.status === 'Closed') {
     subscription.status = 'Active';
     subscription.isPaused = false;
-    subscription.nextBillingDate = oldExpiryDate;
+    subscription.nextBillingDate = startOfDayIST(oldExpiryDate);
   }
 
   await subscription.save();

@@ -64,6 +64,6 @@ export const setActive = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(req.params.id, { isActive }, { returnDocument: 'after' });
-
+  if (!user) throw new AppError('User not found', 404);
   res.json({ success: true, user });
 });

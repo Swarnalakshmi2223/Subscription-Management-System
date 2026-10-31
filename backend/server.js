@@ -25,6 +25,12 @@ app.set('trust proxy', 1); // needed behind Render's proxy
 app.use(helmet());
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  req.body ??= {};
+  next();
+});
+
 app.use(morgan('dev'));
 
 app.get('/api/health', (req, res) => {
