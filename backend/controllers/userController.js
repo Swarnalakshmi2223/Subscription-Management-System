@@ -63,8 +63,7 @@ export const setActive = asyncHandler(async (req, res) => {
     throw new AppError('You cannot change your own status', 400);
   }
 
-  const user = await User.findByIdAndUpdate(req.params.id, { isActive }, { new: true });
-  if (!user) throw new AppError('User not found', 404);
+  const user = await User.findByIdAndUpdate(req.params.id, { isActive }, { returnDocument: 'after' });
 
   res.json({ success: true, user });
 });

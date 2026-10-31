@@ -8,4 +8,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const url = error.config?.url || '';
+    const isAuthForm = url.startsWith('/auth/login') || url.startsWith('/auth/register');
+    if (error.response?.status === 401 && !isAuthForm) {
+      localStorage.removeItem('token');
+      if (window.location.pathname !== '/login') window.location.assign('/login');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
