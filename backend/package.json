@@ -9,7 +9,8 @@
     "start": "node server.js",
     "seed:admin": "node seed/seedAdmin.js",
     "test:billing": "node scripts/testBilling.js",
-    "test:payments": "node scripts/testPayments.js"
+    "test:payments": "node scripts/testPayments.js",
+    "test:reports": "node scripts/testReports.js"
   },
   "keywords": [],
   "author": "",

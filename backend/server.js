@@ -17,6 +17,7 @@ import invoiceRoutes from './routes/invoiceRoutes.js';
 import billingRoutes from './routes/billingRoutes.js';
 import { startBillingJob } from './jobs/billingJob.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('JWT_SECRET is not set in .env');
@@ -56,6 +57,7 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
