@@ -16,6 +16,9 @@ import Products from './pages/catalog/Products';
 import Plans from './pages/catalog/Plans';
 import QuotationTemplates from './pages/catalog/QuotationTemplates';
 import Discounts from './pages/catalog/Discounts';
+import Subscriptions from './pages/subscriptions/Subscriptions';
+import SubscriptionCreate from './pages/subscriptions/SubscriptionCreate';
+import SubscriptionDetail from './pages/subscriptions/SubscriptionDetail';
 
 export default function App() {
   return (
@@ -46,6 +49,11 @@ export default function App() {
             <Route path="plans" element={<Plans />} />
             <Route path="quotation-templates" element={<QuotationTemplates />} />
             <Route path="discounts" element={<Discounts />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin', 'staff', 'customer']} />}>
+            <Route path="subscriptions" element={<Subscriptions />} />
+            <Route path="subscriptions/new" element={<SubscriptionCreate />} />
+            <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
           </Route>
         </Route>
       </Route>

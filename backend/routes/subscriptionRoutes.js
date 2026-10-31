@@ -6,6 +6,7 @@ import { protect, authorize } from '../middleware/auth.js';
 import {
   getSubscriptions,
   getSubscription,
+  previewSubscription,
   createSubscription,
   updateSubscription,
   sendQuotation,
@@ -27,6 +28,7 @@ router.get('/', authorize('admin', 'staff', 'customer'), getSubscriptions);
 router.get('/:id', authorize('admin', 'staff', 'customer'), getSubscription);
 
 // Admin and staff can create subscriptions.
+router.post('/preview', authorize('admin', 'staff'), previewSubscription);
 router.post('/', authorize('admin', 'staff'), createSubscription);
 
 // Only Draft subscriptions can be updated.

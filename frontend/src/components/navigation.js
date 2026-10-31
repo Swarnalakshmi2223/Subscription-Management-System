@@ -5,9 +5,11 @@ import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
 import ViewModuleOutlined from '@mui/icons-material/ViewModuleOutlined';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import LocalOfferOutlined from '@mui/icons-material/LocalOfferOutlined';
+import AutorenewOutlined from '@mui/icons-material/AutorenewOutlined';
 
 export const navItems = [
   { label: 'Dashboard', to: '/', icon: SpaceDashboardOutlined, roles: ['admin', 'staff', 'customer'], end: true },
+  { label: 'Subscriptions', to: '/subscriptions', icon: AutorenewOutlined, roles: ['admin', 'staff', 'customer'] },
   { label: 'Users', to: '/users', icon: PeopleAltOutlined, roles: ['admin'] },
   { label: 'Customers', to: '/users', icon: PeopleAltOutlined, roles: ['staff'] },
   { label: 'Taxes', to: '/taxes', icon: AccountBalanceOutlined, roles: ['admin', 'staff'] },

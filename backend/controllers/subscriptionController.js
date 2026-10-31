@@ -38,10 +38,91 @@ const validateId = (id, fieldName) => {
 const populateSubscription = (query) =>
   query
     .populate('customerId', 'name email phone company')
-    .populate('planId', 'name price billingPeriod minQuantity')
+    .populate(
+      'planId',
+      'name price billingPeriod minQuantity autoClose allowEarlyClose allowPause allowRenew'
+    )
     .populate('templateId', 'name validityDays')
     .populate('lines.productId', 'name type')
     .populate('lines.taxId', 'name ratePercent');
+
+const resolveSubscriptionRequest = async ({
+  customerId,
+  planId,
+  templateId,
+  startDate,
+  expiryDate,
+  paymentTerms,
+  lines,
+}) => {
+  validateId(customerId, 'customer ID');
+  validateId(planId, 'plan ID');
+
+  if (!startDate || !expiryDate) {
+    throw new AppError('Start date and expiry date are required', 400);
+  }
+
+  if (!PAYMENT_TERMS.includes(paymentTerms)) {
+    throw new AppError('Invalid payment terms', 400);
+  }
+
+  const start = new Date(startDate);
+  const expiry = new Date(expiryDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(expiry.getTime())) {
+    throw new AppError('Invalid subscription dates', 400);
+  }
+
+  if (expiry <= start) {
+    throw new AppError('Expiry date must be after start date', 400);
+  }
+
+  const customer = await User.findById(customerId);
+  if (!customer || customer.role !== 'customer' || !customer.isActive) {
+    throw new AppError('An active customer account is required', 400);
+  }
+
+  const plan = await Plan.findById(planId);
+  if (!plan || !plan.isActive) {
+    throw new AppError('Active subscription plan not found', 404);
+  }
+
+  const selectedStart = startOfDayIST(start);
+  if (selectedStart < startOfDayIST(plan.startDate)) {
+    throw new AppError('Subscription starts before the plan availability date', 400);
+  }
+  if (selectedStart > startOfDayIST(plan.endDate)) {
+    throw new AppError('Subscription starts after the plan availability date', 400);
+  }
+
+  let sourceLines = lines;
+  let selectedTemplateId = null;
+
+  if (templateId !== undefined && templateId !== null) {
+    validateId(templateId, 'quotation template ID');
+    if (Array.isArray(lines)) {
+      throw new AppError('Provide either templateId or lines, not both', 400);
+    }
+
+    const template = await QuotationTemplate.findById(templateId);
+    if (!template || !template.isActive) {
+      throw new AppError('Active quotation template not found', 404);
+    }
+    if (String(template.planId) !== String(plan._id)) {
+      throw new AppError(
+        'The quotation template does not belong to the selected plan',
+        400
+      );
+    }
+
+    sourceLines = template.lines;
+    selectedTemplateId = template._id;
+  } else if (!Array.isArray(lines) || lines.length === 0) {
+    throw new AppError('Provide either templateId or at least one line', 400);
+  }
+
+  return { start, expiry, plan, sourceLines, selectedTemplateId };
+};
 
 // GET /api/subscriptions
 export const getSubscriptions = asyncHandler(async (req, res) => {
@@ -142,6 +223,41 @@ export const getSubscription = asyncHandler(async (req, res) => {
   });
 });
 
+// POST /api/subscriptions/preview
+export const previewSubscription = asyncHandler(async (req, res) => {
+  const {
+    customerId,
+    planId,
+    templateId,
+    startDate,
+    expiryDate,
+    paymentTerms = 'immediate',
+    lines,
+  } = req.body ?? {};
+
+  const { plan, sourceLines } = await resolveSubscriptionRequest({
+    customerId,
+    planId,
+    templateId,
+    startDate,
+    expiryDate,
+    paymentTerms,
+    lines,
+  });
+  const pricedLines = await buildSubscriptionLines({ lines: sourceLines }, plan);
+  const subtotal = pricedLines.reduce(
+    (total, line) => total + line.unitPrice * line.quantity,
+    0
+  );
+  const taxTotal = pricedLines.reduce((total, line) => total + line.taxAmount, 0);
+  const total = pricedLines.reduce((sum, line) => sum + line.amount, 0);
+
+  res.status(200).json({
+    success: true,
+    data: { lines: pricedLines, subtotal, taxTotal, total },
+  });
+});
+
 // POST /api/subscriptions
 export const createSubscription = asyncHandler(async (req, res) => {
   const {
@@ -154,80 +270,16 @@ export const createSubscription = asyncHandler(async (req, res) => {
     lines,
   } = req.body ?? {};
 
-  validateId(customerId, 'customer ID');
-  validateId(planId, 'plan ID');
-
-  if (!startDate || !expiryDate) {
-    throw new AppError('Start date and expiry date are required', 400);
-  }
-
-  if (!PAYMENT_TERMS.includes(paymentTerms)) {
-    throw new AppError('Invalid payment terms', 400);
-  }
-
-  const start = new Date(startDate);
-  const expiry = new Date(expiryDate);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(expiry.getTime())) {
-    throw new AppError('Invalid subscription dates', 400);
-  }
-
-  if (expiry <= start) {
-    throw new AppError('Expiry date must be after start date', 400);
-  }
-
-  const customer = await User.findById(customerId);
-
-  if (!customer || customer.role !== 'customer' || !customer.isActive) {
-    throw new AppError('An active customer account is required', 400);
-  }
-
-  const plan = await Plan.findById(planId);
-
-  if (!plan || !plan.isActive) {
-    throw new AppError('Active subscription plan not found', 404);
-  }
-
-  // FIX: compare calendar days in India time, so the result is the same
-  // on your PC and on the Render server.
-  const selectedStart = startOfDayIST(start);
-
-  if (selectedStart < startOfDayIST(plan.startDate)) {
-    throw new AppError('Subscription starts before the plan availability date', 400);
-  }
-
-  if (selectedStart > startOfDayIST(plan.endDate)) {
-    throw new AppError('Subscription starts after the plan availability date', 400);
-  }
-
-  let sourceLines = lines;
-  let selectedTemplateId = null;
-
-  if (templateId !== undefined && templateId !== null) {
-    validateId(templateId, 'quotation template ID');
-    if (Array.isArray(lines)) {
-      throw new AppError('Provide either templateId or lines, not both', 400);
-    }
-
-    const template = await QuotationTemplate.findById(templateId);
-
-    if (!template || !template.isActive) {
-      throw new AppError('Active quotation template not found', 404);
-    }
-
-    if (String(template.planId) !== String(plan._id)) {
-      throw new AppError(
-        'The quotation template does not belong to the selected plan',
-        400
-      );
-    }
-
-    sourceLines = template.lines;
-    selectedTemplateId = template._id;
-  } else if (!Array.isArray(lines) || lines.length === 0) {
-    throw new AppError('Provide either templateId or at least one line', 400);
-  }
-
+  const { start, expiry, plan, sourceLines, selectedTemplateId } =
+    await resolveSubscriptionRequest({
+      customerId,
+      planId,
+      templateId,
+      startDate,
+      expiryDate,
+      paymentTerms,
+      lines,
+    });
   const pricedLines = await buildSubscriptionLines({ lines: sourceLines }, plan);
   const number = await generateSubscriptionNumber();
 
