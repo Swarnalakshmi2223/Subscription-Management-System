@@ -8,3 +8,9 @@ export const navItems = [
 ];
 
 export const roleColor = { admin: 'primary', staff: 'info', customer: 'default' };
+
+export const isNavItemActive = (item, pathname) => (
+  item.end
+    ? pathname === item.to
+    : pathname === item.to || pathname.startsWith(`${item.to}/`)
+);

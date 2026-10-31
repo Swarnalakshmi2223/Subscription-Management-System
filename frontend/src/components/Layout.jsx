@@ -9,7 +9,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LoopIcon from '@mui/icons-material/Loop';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../context/AuthContext';
-import { navItems, roleColor } from './navigation';
+import { isNavItemActive, navItems, roleColor } from './navigation';
 
 const DRAWER = 260;
 
@@ -39,7 +39,7 @@ export default function Layout() {
       <List sx={{ px: 1.5, flex: 1 }}>
         {items.map((item) => {
           const Icon = item.icon;
-          const selected = item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
+          const selected = isNavItemActive(item, location.pathname);
           return (
             <ListItemButton
               key={item.label}

@@ -53,7 +53,8 @@ export default function Users() {
   }, [page, limit, query, role, isAdmin]);
 
   useEffect(() => {
-    load();
+    const timer = setTimeout(() => load(), 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const toggleActive = async (u) => {
