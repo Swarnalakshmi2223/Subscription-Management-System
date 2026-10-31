@@ -8,12 +8,14 @@ import LocalOfferOutlined from '@mui/icons-material/LocalOfferOutlined';
 import AutorenewOutlined from '@mui/icons-material/AutorenewOutlined';
 import ReceiptLongOutlined from '@mui/icons-material/ReceiptLongOutlined';
 import PaymentsOutlined from '@mui/icons-material/PaymentsOutlined';
+import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 
 export const navItems = [
   { label: 'Dashboard', to: '/', icon: SpaceDashboardOutlined, roles: ['admin', 'staff', 'customer'], end: true },
   { label: 'Subscriptions', to: '/subscriptions', icon: AutorenewOutlined, roles: ['admin', 'staff', 'customer'] },
   { label: 'Invoices', to: '/invoices', icon: ReceiptLongOutlined, roles: ['admin', 'staff', 'customer'] },
   { label: 'Payments', to: '/payments', icon: PaymentsOutlined, roles: ['admin', 'staff', 'customer'] },
+  { label: 'My profile', to: '/profile', icon: AccountCircleOutlined, roles: ['admin', 'staff', 'customer'] },
   { label: 'Users', to: '/users', icon: PeopleAltOutlined, roles: ['admin'] },
   { label: 'Customers', to: '/users', icon: PeopleAltOutlined, roles: ['staff'] },
   { label: 'Taxes', to: '/taxes', icon: AccountBalanceOutlined, roles: ['admin', 'staff'] },

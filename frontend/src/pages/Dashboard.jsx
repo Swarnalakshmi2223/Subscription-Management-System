@@ -25,6 +25,7 @@ import DataTable from '../components/DataTable';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import PageHeader from '../components/PageHeader';
+import StatusChip from '../components/StatusChip';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { apiError } from '../utils/errors';
@@ -39,15 +40,9 @@ const paymentMethods = [
   ['cheque', 'Cheque'],
 ];
 
-const customerAbilities = {
-  admin: ['Create staff accounts', 'Manage products, plans, taxes and discounts', 'Oversee subscriptions, invoices and payments', 'View finance reports'],
-  staff: ['Look after customers', 'Create quotations and subscriptions', 'Confirm, send and print invoices', 'Record payments'],
-  customer: ['View your own subscriptions', 'View and print your own invoices', 'Track upcoming renewals'],
-};
-
 export default function Dashboard() {
   const { user } = useAuth();
-  if (user.role === 'customer') return <CustomerWelcome user={user} />;
+  if (user.role === 'customer') return <CustomerDashboard user={user} />;
   return <FinanceDashboard user={user} />;
 }
 
@@ -154,14 +149,71 @@ function monthLabel(year, month) {
   return new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
-function CustomerWelcome({ user }) {
+function CustomerDashboard({ user }) {
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [summary, setSummary] = useState({ active: 0, outstanding: 0, recentPayments: 0, nextBilling: null });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [subscriptionResponse, invoiceResponse, paymentResponse] = await Promise.all([
+        api.get('/subscriptions', { params: { page: 1, limit: 5 } }),
+        api.get('/invoices', { params: { page: 1, limit: 5, payment: 'outstanding' } }),
+        api.get('/payments', { params: { page: 1, limit: 5 } }),
+      ]);
+      const ownSubscriptions = subscriptionResponse.data.items;
+      const ownInvoices = invoiceResponse.data.items;
+      const ownPayments = paymentResponse.data.items;
+      const active = ownSubscriptions.filter((subscription) => subscription.status === 'Active');
+      const nextBilling = active.filter((subscription) => subscription.nextBillingDate).sort((left, right) => new Date(left.nextBillingDate) - new Date(right.nextBillingDate))[0]?.nextBillingDate || null;
+      setSubscriptions(ownSubscriptions);
+      setInvoices(ownInvoices);
+      setPayments(ownPayments);
+      setSummary({ active: active.length, outstanding: ownInvoices.reduce((sum, invoice) => sum + invoice.outstanding, 0), recentPayments: ownPayments.reduce((sum, payment) => sum + payment.amount, 0), nextBilling });
+    } catch (err) {
+      setError(apiError(err, 'Failed to load your portal dashboard'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  const subscriptionColumns = [
+    { key: 'number', label: 'Subscription', render: (subscription) => <Typography component={Link} to={`/subscriptions/${subscription._id}`} sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none' }}>{subscription.number}</Typography> },
+    { key: 'plan', label: 'Plan', render: (subscription) => subscription.planId?.name || 'Plan unavailable' },
+    { key: 'status', label: 'Status', render: (subscription) => <StatusChip status={subscription.status} /> },
+    { key: 'nextBillingDate', label: 'Next billing', render: (subscription) => subscription.nextBillingDate ? formatDateIST(subscription.nextBillingDate) : '—' },
+  ];
+  const invoiceColumns = [
+    { key: 'number', label: 'Invoice', render: (invoice) => <Typography component={Link} to={`/invoices/${invoice._id}`} sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none' }}>{invoice.number}</Typography> },
+    { key: 'dueDate', label: 'Due', render: (invoice) => formatDateIST(invoice.dueDate) },
+    { key: 'outstanding', label: 'Outstanding', align: 'right', render: (invoice) => formatINR(invoice.outstanding) },
+  ];
+
   return (
     <>
-      <PageHeader title={`Welcome, ${user.name.split(' ')[0]}`} subtitle="Here is what you can do with your account." />
-      <Paper variant="outlined" sx={{ maxWidth: 640, p: { xs: 2, sm: 3 } }}>
-        <Typography variant="h6" sx={{ mb: 1.5, textTransform: 'capitalize' }}>{user.role} access</Typography>
-        <Stack spacing={1}>{customerAbilities[user.role].map((ability) => <Typography key={ability} color="text.secondary">• {ability}</Typography>)}</Stack>
-      </Paper>
+      <PageHeader title={`Customer portal`} subtitle={`Welcome, ${user.name.split(' ')[0]}. Here is your Brightloop account at a glance.`} />
+      {error && <ErrorAlert error={error} sx={{ mb: 3 }} />}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3, flexWrap: 'wrap' }}>
+        <MetricCard label="Active subscriptions" value={summary.active} icon={<AutorenewOutlined />} tone="primary" loading={loading} />
+        <MetricCard label="Outstanding balance" value={formatINR(summary.outstanding)} icon={<AccountBalanceWalletOutlined />} tone="warning" loading={loading} />
+        <MetricCard label="Recent payments" value={formatINR(summary.recentPayments)} icon={<AttachMoneyOutlined />} tone="success" loading={loading} />
+        <MetricCard label="Next billing" value={summary.nextBilling ? formatDateIST(summary.nextBilling) : '—'} icon={<WarningAmberOutlined />} tone="secondary" loading={loading} />
+      </Stack>
+      <Stack spacing={3}>
+        <Box><Typography variant="h6" sx={{ mb: 1 }}>My subscriptions</Typography><DataTable columns={subscriptionColumns} rows={subscriptions} loading={loading} emptyTitle="No subscriptions yet" emptyDescription="Your active subscriptions will appear here." aria-label="My subscriptions" /></Box>
+        <Box><Typography variant="h6" sx={{ mb: 1 }}>Outstanding invoices</Typography><DataTable columns={invoiceColumns} rows={invoices} loading={loading} emptyTitle="No outstanding invoices" emptyDescription="You have no unpaid invoices." aria-label="My outstanding invoices" /></Box>
+        <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}><Stack spacing={1.5}><Typography variant="h6">Recent payments</Typography>{loading ? <Typography color="text.secondary">Loading payments…</Typography> : payments.length === 0 ? <EmptyState title="No payments yet" description="Your recorded payments will appear here." /> : payments.map((payment) => <Stack key={payment._id} direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">{payment.invoiceId?.number || 'Invoice'} · {formatDateIST(payment.paymentDate)}</Typography><Typography sx={{ fontWeight: 700 }}>{formatINR(payment.amount)}</Typography></Stack>)}</Stack></Paper>
+      </Stack>
     </>
   );
 }

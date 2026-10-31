@@ -22,6 +22,7 @@ import SubscriptionDetail from './pages/subscriptions/SubscriptionDetail';
 import Invoices from './pages/invoices/Invoices';
 import InvoiceDetail from './pages/invoices/InvoiceDetail';
 import Payments from './pages/payments/Payments';
+import Profile from './pages/profile/Profile';
 
 export default function App() {
   return (
@@ -55,11 +56,14 @@ export default function App() {
           </Route>
           <Route element={<ProtectedRoute roles={['admin', 'staff', 'customer']} />}>
             <Route path="subscriptions" element={<Subscriptions />} />
-            <Route path="subscriptions/new" element={<SubscriptionCreate />} />
             <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoices/:id" element={<InvoiceDetail />} />
             <Route path="payments" element={<Payments />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin', 'staff']} />}>
+            <Route path="subscriptions/new" element={<SubscriptionCreate />} />
           </Route>
         </Route>
       </Route>
